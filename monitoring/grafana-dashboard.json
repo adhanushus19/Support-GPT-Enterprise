@@ -1,0 +1,78 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 1,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 101,
+      "title": "Estimated LLM Cumulative Cost",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(llm_cost_total)",
+          "legendFormat": "Cost USD",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 102,
+      "title": "HTTP Requests Total by Status",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (status) (http_requests_total)",
+          "legendFormat": "Status {{status}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "id": 103,
+      "title": "LLM Tokens Consumed",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (type) (llm_tokens_total)",
+          "legendFormat": "Token {{type}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "id": 104,
+      "title": "Guardrail Violations Counter",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (guardrail_type) (guardrail_violations_total)",
+          "legendFormat": "Scrubbed {{guardrail_type}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["telemetry", "llm"],
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "title": "SupportGPT Telemetry Insights",
+  "version": 1
+}
