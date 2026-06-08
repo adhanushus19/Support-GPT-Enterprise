@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/supportgpt
+      - REDIS_URL=redis://cache:6379/0
+      - LLM_PROVIDER=mock
+      - APP_ENV=production
+      - VECTOR_DB_PERSIST_DIR=/app/chromadb_store
+    volumes:
+      - chromadb-data:/app/chromadb_store
+    depends_on:
+      - db
+      - cache
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=supportgpt
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+
+  cache:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    volumes:
+      - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    depends_on:
+      - backend
+
+volumes:
+  pg-data:
+  chromadb-data:
