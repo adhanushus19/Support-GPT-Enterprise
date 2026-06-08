@@ -1,0 +1,75 @@
+import time
+import logging
+from typing import Dict, Any
+
+from src.llm.provider import llm_provider
+from src.guardrails.response_filter import filter_response
+from src.observability.metrics import AGENT_EXECUTION_DURATION_SECONDS, QA_SCORE_HISTOGRAM
+
+logger = logging.getLogger("supportgpt.agents.quality_assurance")
+
+class QualityAssuranceAgent:
+    """
+    Evaluates response faithfulness, detects hallucinations, matches content with citations,
+    and applies leakage response filters.
+    """
+    async def verify(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        start_time = time.time()
+        logger.info(f"QA Agent started verifying response for ticket: {state.get('ticket_id')}")
+
+        if "Security threat" in "".join(state.get("errors", [])):
+            return state
+
+        query = f"Subject: {state.get('subject')}\nDescription: {state.get('description')}"
+        citations = state.get("context_citations", [])
+        raw_response = state.get("suggested_response", "")
+
+        context_texts = [c.text for c in citations]
+
+        try:
+            # 1. Run LLM-based hallucination and quality evaluation
+            qa_eval, in_tok, out_tok = await llm_provider.evaluate_qa(
+                query=query,
+                context=context_texts,
+                response=raw_response
+            )
+
+            # Update metrics
+            state["tokens_input"] = state.get("tokens_input", 0) + in_tok
+            state["tokens_output"] = state.get("tokens_output", 0) + out_tok
+            
+            qa_score = qa_eval.get("qa_score", 0.0)
+            hallucinated = qa_eval.get("hallucination_detected", False)
+            
+            # Observe score distribution
+            QA_SCORE_HISTOGRAM.observe(qa_score)
+
+            # 2. Apply Output Guardrail Response Filtering
+            filtered_response_text = filter_response(raw_response)
+            if filtered_response_text != raw_response:
+                logger.warning("Response guardrail triggered: leaked instructions were scrubbed.")
+                # Force high priority/escalation or low QA score if a leak occurred
+                qa_score = 0.5
+                hallucinated = True
+
+            duration = time.time() - start_time
+            AGENT_EXECUTION_DURATION_SECONDS.labels(agent_name="quality_assurance").observe(duration)
+
+            return {
+                **state,
+                "suggested_response": filtered_response_text,
+                "qa_score": qa_score,
+                "hallucination_detected": hallucinated,
+                "errors": state.get("errors", []) + (["QA score alert: potential hallucination detected."] if hallucinated else [])
+            }
+
+        except Exception as e:
+            logger.error(f"Error executing QA evaluation in QA agent: {e}")
+            return {
+                **state,
+                "qa_score": 0.5,
+                "hallucination_detected": True,
+                "errors": state.get("errors", []) + [f"QA agent error: {str(e)}"]
+            }
+
+quality_assurance_agent = QualityAssuranceAgent()
